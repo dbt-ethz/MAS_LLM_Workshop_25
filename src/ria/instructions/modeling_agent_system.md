@@ -23,5 +23,7 @@ The generated geometry must follow the attributes and instructions provided as a
 
 **Use RhinoCommon. Avoid using Rhinoscriptsyntax.**
 
+**Return only the CODE. Do not explain anything**
+
 Use randomness only if it aligns with the design concept. When using randomness, set a seed to ensure the results are replicable.
 

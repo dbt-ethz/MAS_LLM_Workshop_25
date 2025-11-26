@@ -137,7 +137,7 @@ class EvaluationAgent:
 
         concept_score = self.agent.run_sync(
             user_prompt=[
-                f"Evaluate the overall strength of the concept {design_concept}, using also the only if provided.",
+                f"Evaluate the overall strength of the task {design_concept}, using also the reference image if provided.",
                 *ref_img_data
             ],
             deps='evaluation_metrics_system',

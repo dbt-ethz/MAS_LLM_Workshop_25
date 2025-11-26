@@ -14,7 +14,7 @@ from pydantic_ai import Agent, RunContext, BinaryContent
 from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-MODEL_NAME_DEFAULT = "gpt-5"
+MODEL_NAME_DEFAULT = "gpt-4o"
 
 class ParametricModelingAgent:
     def __init__(
@@ -93,16 +93,17 @@ class ParametricModelingAgent:
         user_task: str,
         output_dir: str,
         reference_images: list[str] = [],
+        improvement_proposal: str = None,  # New optional parameter
         number_of_attempts: int = 8,
         number_of_example_usages: int = 3,
-    )-> None: 
+    ) -> None:
         # Initial setup for the first attempt
         message = "this is the first step, no code yet"
         error_message = None
         generated_gh_code = None
 
-        # read reference images
-        images = load_images(reference_images)
+        # Load reference images as they are
+        loaded_images = load_images(reference_images)
 
         for attempt in range(number_of_attempts):
             if attempt == 0:
@@ -120,12 +121,15 @@ class ParametricModelingAgent:
                     )
                 )
             else:
-                result = self.agent.run_sync(
-                    user_prompt=[
-                        self.prompt_template.format(design_task=user_task), 
-                        *images
-                    ]
-                )
+                # Include improvement_proposal if provided
+                user_prompt = [
+                    self.prompt_template.format(design_task=user_task),
+                    *loaded_images
+                ]
+                if improvement_proposal:
+                    user_prompt.append(f"Improvement Proposal: {improvement_proposal}")
+
+                result = self.agent.run_sync(user_prompt=user_prompt)
             
             # Clean the generated code string
             generated_gh_code = clean_code_string(result.output)
@@ -203,9 +207,13 @@ class ParametricModelingAgent:
                     code_summary
                 )
 
-                # Save user task and reference images
+                # Save user task, reference images, and improvement proposal
                 json_dump(
-                    {'task': user_task, 'reference_images': reference_images},
+                    {
+                        'task': user_task,
+                        'reference_images': reference_images,
+                        'improvement_proposal': improvement_proposal  # Save the proposal if provided
+                    },
                     os.path.join(output_dir, "design_driver.json"),
                 )
 
