@@ -93,9 +93,10 @@ class ParametricModelingAgent:
         user_task: str,
         output_dir: str,
         reference_images: list[str] = [],
+        material: str = None,  # Material parameter
         improvement_proposal: str = None,  # New optional parameter
         number_of_attempts: int = 8,
-        number_of_example_usages: int = 3,
+        number_of_example_usages: int = 5,
     ) -> None:
         # Initial setup for the first attempt
         message = "this is the first step, no code yet"
@@ -188,7 +189,7 @@ class ParametricModelingAgent:
                 # Render the generated geometries
                 render_objs(
                     paths=obj_output_paths,
-                    render_style=RenderStyle.GHOSTED,
+                    render_style=RenderStyle.SOLID,
                 )
 
                 # Generate code summary
@@ -207,10 +208,11 @@ class ParametricModelingAgent:
                     code_summary
                 )
 
-                # Save user task, reference images, and improvement proposal
+                # Save user task, reference images, material, and improvement proposal
                 json_dump(
                     {
-                        'task': user_task,
+                        'task': "Generate a script for a 3D geometry that represents a facade, based on the reference image and the selected material",
+                        'material': material,
                         'reference_images': reference_images,
                         'improvement_proposal': improvement_proposal  # Save the proposal if provided
                     },

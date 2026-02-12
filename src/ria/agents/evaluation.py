@@ -159,7 +159,7 @@ class EvaluationAgent:
         materiality_score = self.agent.run_sync(
             user_prompt=[
                 f"Evaluate if a specific construction material can be depicted from the rendered image, judging only by the geometrical cues represented in the rendered image.",
-                f"To complement your assessment, you can also check the python code that generates the model: {gh_python_script} and the design concept, in case a specific material was specified beforehand {design_concept}.", 
+                f"To complement your assessment, you can also check the python code that generates the model: {gh_python_script} and the specific material that was specified in the design concept: {design_concept}.", 
                 *render_data,
             ],
             deps='evaluation_03_materiality_system',

@@ -14,30 +14,56 @@ def get_output_padding(dir):
     return str(pad).zfill(2)
 
 if __name__ == "__main__":
-    id = get_output_padding(OUTPUT_FOLDER)
-    label = 'baseline'
-
-    output_dir = os.path.join(OUTPUT_FOLDER, f"{id}_{label}")
+    # Get list of available reference images
+    available_images = []
+    for img_file in os.listdir(IMAGE_PATH):
+        suffix = pathlib.Path(img_file).suffix.lower()
+        if suffix in ['.png', '.jpeg', '.gif', '.webp', '.jpg']:
+            available_images.append(img_file)
+    
+    # Let user select a reference image
+    if not available_images:
+        print("No reference images found in _reference_images folder!")
+        exit(1)
+    
+    print("\nAvailable reference images:")
+    for i, img in enumerate(available_images, 1):
+        print(f"{i}. {img}")
+    
+    selection = int(input("\nSelect image number: ")) - 1
+    selected_image = available_images[selection]
+    selected_image_path = os.path.join(IMAGE_PATH, selected_image)
+    
+    # Extract image name without extension
+    image_name = pathlib.Path(selected_image).stem
+    
+    ########################################################################## 
+    # USER PROMPT: This is where you define the material for the modeling agent.
+    material = "stone"  
+    task = "Generate a script for a 3D geometry that represents a facade on the XZ plane, based on the reference image and the selected material"
+    improvement = None
+    ##########################################################################  
+ 
+    # Create output folder name: {image_name}_{material}
+    label = f"{image_name}_{material}"
+    output_dir = os.path.join(OUTPUT_FOLDER, label)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
-    reference_images=[]
-    for img_file in os.listdir(IMAGE_PATH):
-        suffix=pathlib.Path(img_file).suffix.lower()
-        if suffix in ['.png', '.jpeg', '.gif', '.webp']:
-            reference_images.append(os.path.join(IMAGE_PATH, img_file))
     
-    previous_renders=[]
-    for img_file in os.listdir(PREV_ITERATION_FOLDER):
-        suffix=pathlib.Path(img_file).suffix.lower()
-        if suffix in ['.png', '.jpeg', '.gif', '.webp']:
-            previous_renders.append(os.path.join(PREV_ITERATION_FOLDER, img_file))
-
-    # USER PROMPT: This is where you define the task for the modeling agent.
-    task = "Generate a parametric model of a facade for a building of 6 meters width and 12 meters height. If a reference image is provided, use it as a guide. If not, use your own internal logic as a driver concept."
-    improvement = None
+    previous_renders = []
+    if os.path.exists(PREV_ITERATION_FOLDER):
+        for img_file in os.listdir(PREV_ITERATION_FOLDER):
+            suffix = pathlib.Path(img_file).suffix.lower()
+            if suffix in ['.png', '.jpeg', '.gif', '.webp', '.jpg']:
+                previous_renders.append(os.path.join(PREV_ITERATION_FOLDER, img_file))
+    
 
     # OPTIONAL: Add reference_images=IMAGE_FOLDER if any.
     modeling_agent = ParametricModelingAgent()
     #modeling_agent.generate_code(user_task=task, output_dir=output_dir, reference_images=previous_renders, improvement_proposal=improvement)
-    modeling_agent.generate_code(user_task=task, output_dir=output_dir, reference_images=None, improvement_proposal=improvement)
+    modeling_agent.generate_code(
+        user_task=task, 
+        output_dir=output_dir, 
+        reference_images=[selected_image_path],
+        material=material
+    )
