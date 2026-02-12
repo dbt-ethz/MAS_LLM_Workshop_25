@@ -120,6 +120,7 @@ class EvaluationAgent:
 
         # load user task
         design_concept = design_driver.get("task")
+        material = design_driver.get("material")
 
          # load reference images
         ref_img_data = load_images(design_driver.get("reference_images"))
@@ -137,8 +138,8 @@ class EvaluationAgent:
 
         framework_score = self.agent.run_sync(
             user_prompt=[
-                f"Evaluate the overall strength of the task {design_concept}, using also the reference image if provided.",
-                f"Evaluate the overall strength of the design task {design_concept}, and its capability to integrate a specific material and its tectonic consequences to generate modeling instructions. To do so, you can also check the python code that is generated after the design task instructions.",
+                f"Evaluate the overall strength of the driver {design_driver}, using also the reference image if provided.",
+                f"Evaluate the overall strength of the design task {design_concept}, and its capability to integrate a specific material {material} and its tectonic consequences to generate modeling instructions. To do so, you can also check the python code that is generated after the design task instructions.",
                 f"code: {gh_python_script}", 
                 *ref_img_data
             ],
@@ -159,7 +160,7 @@ class EvaluationAgent:
         materiality_score = self.agent.run_sync(
             user_prompt=[
                 f"Evaluate if a specific construction material can be depicted from the rendered image, judging only by the geometrical cues represented in the rendered image.",
-                f"To complement your assessment, you can also check the python code that generates the model: {gh_python_script} and the specific material that was specified in the design concept: {design_concept}.", 
+                f"To complement your assessment, you can also check the python code that generates the model: {gh_python_script} and the specific material {material} that was specified in the design driver.", 
                 *render_data,
             ],
             deps='evaluation_03_materiality_system',

@@ -2,7 +2,7 @@ import os
 from ria.agents.evaluation import EvaluationAgent
 import questionary
 
-OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outputs")
+OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "experiment_dms26_baseline")
 
 if __name__ == "__main__":
     # Prompt user for the path to the design folder
@@ -10,6 +10,7 @@ if __name__ == "__main__":
 
     if outputs:   
         design_path = questionary.select(
+
             "Select the design folder to evaluate:",
             choices=outputs
         ).ask()
@@ -24,4 +25,4 @@ if __name__ == "__main__":
         eval_agent = EvaluationAgent()
         eval_agent.evaluate_design(os.path.join(OUTPUT_FOLDER, design_path))
     else:
-        print("No design folders found in outputs directory.")
+        print("No design folders found in the experiment directory.")
