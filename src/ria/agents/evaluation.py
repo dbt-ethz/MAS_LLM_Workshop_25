@@ -42,34 +42,34 @@ class ImprovementTarget(str, Enum):
     DESIGN_MODELING = "design_modeling"
     DESIGN_GEOMETRY = "design_geometry"
 
-class ConceptStrength(BaseModel):
+class TectonicFramework(BaseModel):
     scores: int | None = Field(
         default=None,
-        description="What's the overall strength and quality of the design concept? Ranging from 1 to 5. Low score=1: The design concept is not evocative and does not provide clear instructions to model the geometry. High score=5: The design concept is strong, formally evocative and suggests specific modeling strategies.",
+        description="Does the design concept provide clear step-by-step instructions to generate procedural 3D facade geometries? Is it enough to inform a specific tectonic character to the resulting geometry? Ranging from 1 to 5. Low score=1: The design concept is bland, ambiguous and lacks tectonic specificity to become clear step-by-step instructions on how to model the intended facade. High score=5: The design task embodies material cues and expands them with relevant dimensions, formal and spatial implications, facade system and building components, clearly translating them into material-specific and concise modeling steps.",
     )
     explanation: str | None = Field(
         default=None,
-        description="Explain your reasoning for the scores given above, in 2-3 concise sentences. Provide specific observations that support your evaluation.",
+        description="Explain your reasoning for the scores given above. Provide specific observations that support your evaluation of the design concept and its capability to direct the generation of an architectural facade geometry.",
+    )
+    
+class FacadePotential(BaseModel):
+    scores: int | None = Field(
+        default=None,
+        description="Does the image represent an elevation of a potential facade? Ranging from 1 to 5. Low score=1: The rendered image could be any geometry and does not resemble at all the elevation of a facade. High score=5: By observing the image, one can easily identify an elevation of a geometry that, even at a conceptual level, reads visible composition rules, credible proportions and/or relevant components that clearly communicate the potential to be developed into a real facade.",
+    )
+    explanation: str | None = Field(
+        default=None,
+        description="Explain your reasoning for the scores given above. Provide specific observations from the image and/or the .py function that support your evaluation of the facade potential.",
     )
 
-class ModelingStrategy(BaseModel):
+class MaterialSpecificity(BaseModel):
     scores: int | None = Field(
         default=None,
-        description="How clear is the relationship between the .py function used to model the geometry, the design concept and the object rendered in the image? Ranging from 1 to 5. Low score=1: The .py function steps are not easily relatable with the attributes suggested in the design concept nor with the generated object. High score=5: The modeling steps in the .py function clearly reflect the attributes of the design concept and allow a successful modeling of the object.",
+        description="By observing the rendered image, and judging only by its geometrical cues, can you tell which material it is built of? Ranging from 1 to 5. Low score=1: The rendered image represents an ambiguous or highly generic geometry either with insufficient material cues or with cues that do not align at all with the material described in the design concept. High score=5: By observing the geometry rendered in the image, one can easily identify the material it is made of and, if the design concept describes a specific material, the generated facade geometry clearly embodies that material's inherent characteristics.",
     )
     explanation: str | None = Field(
         default=None,
-        description="Explain your reasoning for the scores given above, in 2-3 concise sentences. Provide specific observations that support your evaluation.",
-    )
-
-class GeometricAlignment(BaseModel):
-    scores: int | None = Field(
-        default=None,
-        description="How well does the rendered geometry represent the attributes of the design concept? Ranging from 1 to 5. Low score=1: The rendered image could be any geometry and does not align at all with the design concept. High score=5: By observing the image, one can easily identify the key formal, spatial and geometrical attributes expressed in the design concept",
-    )
-    explanation: str | None = Field(
-        default=None,
-        description="Explain your reasoning for the scores given above, in 2-3 concise sentences. Provide specific observations that support your evaluation.",
+        description="Explain your reasoning for the scores given above. Provide specific observations from the image, the .py function and the design task that support your evaluation of the material specificity.",
     )
 
 # 03 -- OPTIONAL. DEFINE A CLASS TO SUGGEST IMPROVEMENTS BASED ON THE EVALUATIONS.
@@ -131,43 +131,46 @@ class EvaluationAgent:
         file = os.path.join(path, "gh_function.py")
         if not os.path.exists(file):
             raise FileNotFoundError(f"gh_function.py not found")
-        gh_pyhon_script = load_text(file)
+        gh_python_script = load_text(file)
         
         print ("files validated. running evaluation...")
 
-        concept_score = self.agent.run_sync(
+        framework_score = self.agent.run_sync(
             user_prompt=[
                 f"Evaluate the overall strength of the task {design_concept}, using also the reference image if provided.",
+                f"Evaluate the overall strength of the design task {design_concept}, and its capability to integrate a specific material and its tectonic consequences to generate modeling instructions. To do so, you can also check the python code that is generated after the design task instructions.",
+                f"code: {gh_python_script}", 
                 *ref_img_data
             ],
-            deps='evaluation_metrics_system',
-            output_type=ConceptStrength
+            deps='evaluation_01_framework_system',
+            output_type=TectonicFramework
         ).output
 
-        modeling_score = self.agent.run_sync(
+        facadeness_score = self.agent.run_sync(
             user_prompt=[
-                f"Evaluate the alignment of the gh python script {gh_pyhon_script} that generates the model with the given concept {design_concept} and the rendered object. ", 
+                f"Evaluate how well does the rendered image represent an elevation of a potential facade.",
+                f"To do so, look at the render data and the python code that generates the model: {gh_python_script}. You can also check the design concept {design_concept} to see the original intentions and instructions for the design and complement your assessment.", 
                 *render_data,
             ],
-            deps='evaluation_metrics_system',
-            output_type=ModelingStrategy
+            deps='evaluation_02_facadeness_system',
+            output_type=FacadePotential
         ).output
 
-        geometric_score = self.agent.run_sync(
+        materiality_score = self.agent.run_sync(
             user_prompt=[
-                f"Evaluate the alignment of the geometry rendered in the image with the given design concept {design_concept}.",
-                f"code: {gh_pyhon_script}", 
+                f"Evaluate if a specific construction material can be depicted from the rendered image, judging only by the geometrical cues represented in the rendered image.",
+                f"To complement your assessment, you can also check the python code that generates the model: {gh_python_script} and the design concept, in case a specific material was specified beforehand {design_concept}.", 
                 *render_data,
             ],
-            deps='evaluation_metrics_system',
-            output_type=GeometricAlignment
+            deps='evaluation_03_materiality_system',
+            output_type=MaterialSpecificity
         ).output
 
         # Extract scores as floats
         scores = [
-            float(concept_score.scores) if concept_score.scores else None,
-            float(modeling_score.scores) if modeling_score.scores else None,
-            float(geometric_score.scores) if geometric_score.scores else None,
+            float(framework_score.scores) if framework_score.scores else None,
+            float(facadeness_score.scores) if facadeness_score.scores else None,
+            float(materiality_score.scores) if materiality_score.scores else None,
         ]
         # Filter out None values
         valid_scores = [s for s in scores if s]
@@ -176,21 +179,21 @@ class EvaluationAgent:
         # Generate improvement proposal
         improvement = self.agent.run_sync(
             user_prompt=[
-                "Based on the previous evaluations and scores, provide an improvement proposal focusing on the weakest aspect of these three:",
-                f"Design Concept: {concept_score}",
-                f"Modeling Strategy: {modeling_score}",
-                f"Geometric Alignment: {geometric_score}",
+                "Based on the previous evaluations and scores, choose the weakest segment in the pipeline OR the segment whose improvement would have the most significant impact, and provide an improvement proposal",
+                f"Tectonic framework: {framework_score}",
+                f"Facade potential: {facadeness_score}",
+                f"Material specificity: {materiality_score}",
             ],
-            deps='evaluation_improvement_system',
+            deps='evaluation_04_improvement_system',
             output_type=ImprovementProposal
         ).output
 
         # Return all scores and improvement proposal as a dictionary
         json_dump(
             dict(
-                concept_strength=concept_score.model_dump(),
-                modeling_strategy=modeling_score.model_dump(),
-                geometric_alignment=geometric_score.model_dump(),
+                tectonic_framework=framework_score.model_dump(),
+                facade_potential=facadeness_score.model_dump(),
+                material_specificity=materiality_score.model_dump(),
                 average_score=average_score,
                 improvement_proposal=improvement.model_dump()
             ),
