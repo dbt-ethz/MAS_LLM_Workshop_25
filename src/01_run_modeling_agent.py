@@ -39,7 +39,7 @@ if __name__ == "__main__":
     
     ########################################################################## 
     # USER PROMPT: This is where you define the material for the modeling agent.
-    material = "stone"  
+    material = "timber"  
     task = "Generate a script for a 3D geometry that represents a facade on the XZ plane, based on the reference image and the selected material"
     improvement = None
     ##########################################################################  
