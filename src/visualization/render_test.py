@@ -30,6 +30,7 @@ def get_bounding_box_corners(objs):
     min_vec = Vector((min(p.x for p in bps), min(p.y for p in bps), min(p.z for p in bps)))
     max_vec = Vector((max(p.x for p in bps), max(p.y for p in bps), max(p.z for p in bps)))
     domain = [max_vec.x - min_vec.x, max_vec.y - min_vec.y, max_vec.z - min_vec.z]
+    print (f"Bounding box min: {min_vec}, max: {max_vec}, domain: {domain}")
     return bps, min_vec, max_vec, domain
 
 def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=512):
@@ -52,17 +53,10 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
 
     # remove existing cameras and lights
     for obj in bpy.data.objects:
-        if obj.type == 'CAMERA':
-            bpy.data.objects.remove(obj, do_unlink=True)
-    for obj in bpy.data.objects:
-        if obj.type == 'LIGHT':
-            bpy.data.objects.remove(obj, do_unlink=True)
-    for obj in bpy.data.objects:
-        if obj.type == 'EMPTY':
-            bpy.data.objects.remove(obj, do_unlink=True)
+        bpy.data.objects.remove(obj, do_unlink=True)
 
     # bpy.context.collection = collection
-    bpy.ops.wm.stl_import(filepath=file)
+    bpy.ops.wm.obj_import(filepath=dir, up_axis='Z')
     for obj in bpy.context.selected_objects:
         collection.objects.link(obj)
         bpy.context.collection.objects.unlink(obj)
@@ -104,11 +98,14 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     if min_vec != Vector((0,0,0)):
         for obj in geometries:
             obj.location -= min_vec # Move objects so the minimum corner is at the origin
+        print (f"Moved objects by {-min_vec} to set minimum corner at the origin.")
         bpy.context.view_layer.update()  # Flush depsgraph so matrix_world reflects the new location
 
+    _, min_vec, max_vec, domain = get_bounding_box_corners(geometries)
     if domain[-1] == min(domain):
         print ("Warning: Z is the shortest axis.")
         for obj in geometries:
+            print (f"Rotating object {obj.name} to make Z the up axis.")
             obj.rotation_euler[0] = math.radians(90) # Rotate 90 degrees around X to make Z the "up" axis
         bpy.context.view_layer.update()  # Flush depsgraph so matrix_world reflects the new location
     
@@ -151,6 +148,7 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     # Using sin ensures the whole sphere fits. using tan fits the plane. 
     # sin is safer for arbitrary rotations.
     distance = (radius * fit_margin) / math.sin(fov / 2)
+    print (distance)
 
     # Calculate new camera position
     # Direction vector (camera looking down its local -Z)
@@ -179,14 +177,18 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     constraint.track_axis = 'TRACK_NEGATIVE_Z'
     constraint.up_axis = 'UP_Y'
 
+    print (x_dir)
     # Add light
     light_data = bpy.data.lights.new(name="Light", type='SUN')
-    light_data.angle = math.radians(20) # Soft shadows
+    light_data.angle = math.radians(150) # Soft shadows
     light_data.energy = 3
     light_obj = bpy.data.objects.new(name="Light", object_data=light_data)
     bpy.context.collection.objects.link(light_obj)
-    light_obj.location = (min_vec.x if x_dir else min_vec.y, cam_obj.location.y/5, max_vec.z*1.5)
-
+    if x_dir:
+        light_obj.location = (cam_obj.location.x/4, max_vec.y, max_vec.z*1.5)
+    else:
+        pass
+    
     constraint = light_obj.constraints.new(type='TRACK_TO')
     constraint.target = target
 
@@ -194,15 +196,19 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     constraint.up_axis = 'UP_Y'
 
     # Add a ground plane
-    bpy.ops.mesh.primitive_plane_add(size=500, location=(0, 0, min_vec.z))
+    bpy.ops.mesh.primitive_plane_add(size=500, location=(0, 0, min_vec.z), calc_uvs=True )
     for obj in bpy.context.selected_objects:
         obj.name = "Ground"
 
     # Add a back plane
-    bpy.ops.mesh.primitive_plane_add(size=1, location=(center.x, min_vec.y if x_dir else min_vec.x, center.z), rotation=(math.radians(90), 0, 0), calc_uvs=True)
-    for obj in bpy.context.selected_objects:
-        obj.name = "BackPlane"
-        obj.scale = (domain[0], domain[2], 0)
+    if x_dir:
+        bpy.ops.mesh.primitive_plane_add(size=1, location=(min_vec.x-domain[0]/10, center.y, center.z), rotation=(0,math.radians(90), 0), calc_uvs =True)
+        for obj in bpy.context.selected_objects:
+            obj.name = "BackPlane"
+            obj.scale = (domain[2], domain[1], 1)
+    else:
+        pass
+    bpy.context.view_layer.update()  # Flush depsgraph so matrix_world reflects the new location
 
     # Add grease pencil line art
     gp_data = bpy.data.grease_pencils_v3.new("LineArt")
@@ -222,6 +228,7 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     la_mod = gp_obj.modifiers.new(name="LineArt", type='LINEART')
     la_mod.target_layer = layer.name
     la_mod.target_material = mat
+    la_mod.thickness = int(distance*1.25)
     la_mod.source_type = 'COLLECTION'
     la_mod.source_collection = collection
     la_mod.stroke_depth_offset = 0.05
@@ -241,7 +248,6 @@ def render_scene(output_path: str):
 
 input_dir = Path.cwd() / 'experiment_dms26_baseline'
 
-
 if __name__ == "__main__":
     for dir in input_dir.iterdir():
         if dir.is_dir() and 'R' in dir.name:
@@ -249,5 +255,7 @@ if __name__ == "__main__":
             for file in dir.iterdir():
                 if file.suffix.lower() == '.obj':
                     print (f"Processing file: {file.name}")
-                    # set_scene(dir=file, collection_name="Collection", fit_margin=1.0)
-    # render_scene(output_path=r"C:\Users\chewei\Desktop\rendered.png")
+                    set_scene(dir=str(file), collection_name="Collection", fit_margin=1.0)
+                    render_scene(output_path=str(file.parent / f"{file.stem.split('_')[0]}_render.png"))
+    # file = r"C:\Users\chewei\Documents\github\MAS_LLM_Workshop_25\experiment_dms26_baseline\R01_stone\00_render.obj"
+    # set_scene(dir=str(file), collection_name="Collection", fit_margin=1.0)
