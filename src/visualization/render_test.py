@@ -61,6 +61,16 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
         collection.objects.link(obj)
         bpy.context.collection.objects.unlink(obj)
 
+    # Create and assign material with RGB (201, 226, 255)
+    obj_mat = bpy.data.materials.new(name="ImportedObjMat")
+    obj_mat.use_nodes = True
+    bsdf = obj_mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = (201 / 255, 226 / 255, 255 / 255, 1.0)
+    for obj in collection.objects:
+        if obj.type == 'MESH':
+            obj.data.materials.clear()
+            obj.data.materials.append(obj_mat)
+
     # set render resolution
     scene = bpy.context.scene
     scene.render.resolution_x = res_x
@@ -181,11 +191,11 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     # Add light
     light_data = bpy.data.lights.new(name="Light", type='SUN')
     light_data.angle = math.radians(150) # Soft shadows
-    light_data.energy = 3
+    light_data.energy = 10
     light_obj = bpy.data.objects.new(name="Light", object_data=light_data)
     bpy.context.collection.objects.link(light_obj)
     if x_dir:
-        light_obj.location = (cam_obj.location.x/4, max_vec.y, max_vec.z*1.5)
+        light_obj.location = (cam_obj.location.x/4, min_vec.y, max_vec.z)
     else:
         pass
     
@@ -200,12 +210,22 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     for obj in bpy.context.selected_objects:
         obj.name = "Ground"
 
+    # Add back plane material
+    bp_mat = bpy.data.materials.new(name="ImportedObjMat")
+    bp_mat.use_nodes = True
+    bsdf = bp_mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = (.196, .196, .196, 1.0)
+
     # Add a back plane
     if x_dir:
-        bpy.ops.mesh.primitive_plane_add(size=1, location=(min_vec.x-domain[0]/10, center.y, center.z), rotation=(0,math.radians(90), 0), calc_uvs =True)
+        bpy.ops.mesh.primitive_plane_add(size=1, location=(min(min_vec.x-domain[0]/50, min_vec.x-.01), center.y, center.z), rotation=(0,math.radians(90), 0), calc_uvs =True)
         for obj in bpy.context.selected_objects:
             obj.name = "BackPlane"
             obj.scale = (domain[2], domain[1], 1)
+            obj.data.materials.clear()
+            obj.data.materials.append(bp_mat)
+            collection.objects.link(obj)
+            bpy.context.collection.objects.unlink(obj)
     else:
         pass
     bpy.context.view_layer.update()  # Flush depsgraph so matrix_world reflects the new location
@@ -228,10 +248,42 @@ def set_scene(dir: str, collection_name: str, fit_margin=0.5, res_x=512, res_y=5
     la_mod = gp_obj.modifiers.new(name="LineArt", type='LINEART')
     la_mod.target_layer = layer.name
     la_mod.target_material = mat
-    la_mod.thickness = int(distance*1.25)
+    la_mod.thickness = int(distance)
     la_mod.source_type = 'COLLECTION'
     la_mod.source_collection = collection
     la_mod.stroke_depth_offset = 0.05
+
+    # Set up world background gradient based on camera ray direction
+    set_world_background()
+
+def set_world_background():
+    """
+    Sets the world background to a gradient that mixes between a horizon colour
+    and a zenith colour based on the Z component of the incoming camera ray.
+    """
+    world = bpy.data.worlds.get("World")
+    if not world:
+        world = bpy.data.worlds.new("World")
+    bpy.context.scene.world = world
+    world.use_nodes = True
+
+    nt = world.node_tree
+    nt.nodes.clear()
+
+    # --- nodes ---
+    output_node   = nt.nodes.new('ShaderNodeOutputWorld')
+    bg_node       = nt.nodes.new('ShaderNodeBackground')
+    mix_node      = nt.nodes.new('ShaderNodeMixRGB')
+    light_path_node = nt.nodes.new('ShaderNodeLightPath')
+
+    mix_node.inputs['Color1'].default_value = (0, 0, 0, 1) # Horizon colour
+    mix_node.inputs['Color2'].default_value = (1, 1, 1, 1)
+    bg_node.inputs['Strength'].default_value = 2.0
+
+    # # --- links ---
+    nt.links.new(light_path_node.outputs['Is Camera Ray'], mix_node.inputs[0])  
+    nt.links.new(mix_node.outputs['Color'], bg_node.inputs['Color'])
+    nt.links.new(bg_node.outputs['Background'], output_node.inputs['Surface'])
 
 def render_scene(output_path: str):
     """
@@ -257,5 +309,5 @@ if __name__ == "__main__":
                     print (f"Processing file: {file.name}")
                     set_scene(dir=str(file), collection_name="Collection", fit_margin=1.0)
                     render_scene(output_path=str(file.parent / f"{file.stem.split('_')[0]}_render.png"))
-    # file = r"C:\Users\chewei\Documents\github\MAS_LLM_Workshop_25\experiment_dms26_baseline\R01_stone\00_render.obj"
+    # file = r"C:\Users\chewei\Documents\github\MAS_LLM_Workshop_25\experiment_dms26_baseline\R04_clay\00_render.obj"
     # set_scene(dir=str(file), collection_name="Collection", fit_margin=1.0)
